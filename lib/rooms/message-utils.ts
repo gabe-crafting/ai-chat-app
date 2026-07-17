@@ -20,6 +20,7 @@ export type ChatMessage = {
   authorName: string;
   replyToId: string | null;
   replyTo: MessageReplyPreview | null;
+  hiddenFromAi: boolean;
 };
 
 type MessageRow = {
@@ -32,6 +33,7 @@ type MessageRow = {
   image_url?: string | null;
   created_at: string;
   reply_to_id?: string | null;
+  hidden_from_ai?: boolean;
   profiles?:
     | { display_name: string }
     | { display_name: string }[]
@@ -39,7 +41,7 @@ type MessageRow = {
 };
 
 export const MESSAGE_SELECT =
-  "id, room_id, user_id, role, content, model, image_url, created_at, reply_to_id, profiles(display_name)";
+  "id, room_id, user_id, role, content, model, image_url, created_at, reply_to_id, hidden_from_ai, profiles(display_name)";
 
 function authorNameForRow(
   row: {
@@ -113,6 +115,7 @@ export function mapMessageRow(
     authorName: authorNameForRow(row, authorNames),
     replyToId: row.reply_to_id ?? null,
     replyTo: null,
+    hiddenFromAi: row.hidden_from_ai ?? false,
   };
 }
 

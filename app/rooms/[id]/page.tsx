@@ -9,7 +9,7 @@ import { getUser } from "@/lib/auth/session";
 import { getRoomMessages } from "@/lib/rooms/messages";
 import {
   getInviteUrl,
-  getRoomForParticipant,
+  getRoomPageAccess,
   getRoomParticipants,
 } from "@/lib/rooms/queries";
 
@@ -25,19 +25,18 @@ export default async function RoomPage({ params }: RoomPageProps) {
     redirect(`/login?next=/rooms/${id}`);
   }
 
-  const data = await getRoomForParticipant(id);
+  const access = await getRoomPageAccess(id);
 
-  if (!data) {
+  if (!access) {
     notFound();
   }
 
-  const { room, participant } = data;
+  const { room, participant, readOnly, isOwner } = access;
   const [participants, messages] = await Promise.all([
     getRoomParticipants(id),
     getRoomMessages(id),
   ]);
   const inviteUrl = getInviteUrl(room.invite_code);
-  const isOwner = participant.role === "owner";
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-6">
@@ -54,7 +53,11 @@ export default async function RoomPage({ params }: RoomPageProps) {
         <h1 className="text-2xl font-semibold tracking-tight">{room.name}</h1>
         <p className="text-sm text-muted-foreground">
           Model: {getModelLabel(normalizeModelId(room.model))}
-          {isOwner ? " · Owner" : " · Member"}
+          {readOnly
+            ? ""
+            : isOwner
+              ? " · Owner"
+              : " · Member"}
         </p>
       </div>
 
@@ -66,6 +69,7 @@ export default async function RoomPage({ params }: RoomPageProps) {
         initialMessages={messages}
         canPromptAi={participant.can_prompt_ai}
         isOwner={isOwner}
+        readOnly={readOnly}
         inviteSection={
           isOwner ? (
             <section className="space-y-2 rounded-lg border p-4">

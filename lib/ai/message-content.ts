@@ -8,28 +8,26 @@ function truncate(text: string, max: number) {
   return `${text.slice(0, max - 1)}…`;
 }
 
-export function formatUserLine(
-  displayName: string,
+export function formatModelMessageText(
   content: string,
-  replyTo?: { authorName: string; content: string } | null,
+  replyTo?: { content: string } | null,
 ) {
-  if (!replyTo) {
-    return `${displayName}: ${content}`;
+  const body = content.trim() || "(image)";
+
+  if (!replyTo?.content.trim()) {
+    return body;
   }
 
-  return (
-    `${displayName} (replying to ${replyTo.authorName}: "${truncate(replyTo.content, 160)}"): ${content}`
-  );
+  return `[Replying to: "${truncate(replyTo.content.trim(), 160)}"] ${body}`;
 }
 
 export function buildUserModelContent(
   message: ChatMessage,
   modelId: string,
 ): UserContent {
-  const text = formatUserLine(
-    message.authorName,
-    message.content || "(image)",
-    message.replyTo,
+  const text = formatModelMessageText(
+    message.content,
+    message.replyTo ? { content: message.replyTo.content } : null,
   );
 
   if (!message.imageUrl) {

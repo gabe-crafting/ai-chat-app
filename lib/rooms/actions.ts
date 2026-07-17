@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { isAdminViewer } from "@/lib/auth/admin-viewer";
 import {
   DEFAULT_AI_MODEL,
   isAllowedModel,
@@ -14,6 +15,7 @@ import { assertReplyTarget } from "@/lib/rooms/reply-validation";
 import {
   broadcastParticipantsChanged,
   broadcastParticipantKicked,
+  broadcastMessageAiVisibility,
   broadcastRoomMessage,
 } from "@/lib/rooms/realtime-broadcast";
 import { createClient } from "@/lib/supabase/server";
@@ -68,6 +70,10 @@ export async function joinRoom(
 
   if (authError || !user) {
     return { error: "You must be signed in to join a room." };
+  }
+
+  if (isAdminViewer(user)) {
+    return { error: "You cannot join rooms." };
   }
 
   const { data, error } = await supabase.rpc("join_room", {
@@ -195,6 +201,10 @@ export async function sendRoomMessage(
     return { error: "You are not signed in. Refresh the page and try again." };
   }
 
+  if (isAdminViewer(user)) {
+    return { error: "You cannot send messages." };
+  }
+
   if (replyToId) {
     const validation = await assertReplyTarget(roomId, replyToId);
     if (validation.error) {
@@ -223,4 +233,48 @@ export async function sendRoomMessage(
   await broadcastRoomMessage(roomId, message);
 
   return { message };
+}
+
+export async function setMessageHiddenFromAi(
+  roomId: string,
+  messageId: string,
+  hiddenFromAi: boolean,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { error: "You are not signed in." };
+  }
+
+  const { data: participant, error: participantError } = await supabase
+    .from("room_participants")
+    .select("can_prompt_ai")
+    .eq("room_id", roomId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (participantError) {
+    return { error: participantError.message };
+  }
+
+  if (!participant?.can_prompt_ai) {
+    return { error: "You do not have permission to change AI context." };
+  }
+
+  const { error } = await supabase
+    .from("messages")
+    .update({ hidden_from_ai: hiddenFromAi })
+    .eq("id", messageId)
+    .eq("room_id", roomId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  await broadcastMessageAiVisibility(roomId, messageId, hiddenFromAi);
+  return {};
 }

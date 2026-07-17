@@ -13,6 +13,12 @@ type MessageListProps = {
   pendingAi?: PendingAiMessage | null;
   currentUserId: string;
   onReply: (message: ChatMessage) => void;
+  readOnly?: boolean;
+  canManageAiContext?: boolean;
+  onHiddenFromAiChange?: (
+    messageId: string,
+    hiddenFromAi: boolean,
+  ) => Promise<void>;
 };
 
 function ReplyQuote({ reply }: { reply: NonNullable<ChatMessage["replyTo"]> }) {
@@ -38,6 +44,9 @@ export function MessageList({
   pendingAi,
   currentUserId,
   onReply,
+  readOnly = false,
+  canManageAiContext = false,
+  onHiddenFromAiChange,
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const promptMessage = pendingAi
@@ -73,17 +82,35 @@ export function MessageList({
               isSelf ? "ml-auto items-end" : "items-start",
             )}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <p className="text-xs text-muted-foreground">{message.authorName}</p>
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                className="h-auto px-1 py-0 text-[0.625rem] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-                onClick={() => onReply(message)}
-              >
-                Reply
-              </Button>
+              {!readOnly ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  className="h-auto px-1 py-0 text-[0.625rem] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                  onClick={() => onReply(message)}
+                >
+                  Reply
+                </Button>
+              ) : null}
+              {canManageAiContext && onHiddenFromAiChange ? (
+                <label className="flex items-center gap-1 text-[0.625rem] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 has-[:checked]:opacity-100">
+                  <input
+                    type="checkbox"
+                    checked={message.hiddenFromAi}
+                    onChange={(event) => {
+                      void onHiddenFromAiChange(
+                        message.id,
+                        event.target.checked,
+                      );
+                    }}
+                    className="size-3 rounded border"
+                  />
+                  Hide from AI
+                </label>
+              ) : null}
             </div>
             <div
               className={cn(

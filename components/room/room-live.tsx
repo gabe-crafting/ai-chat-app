@@ -16,6 +16,7 @@ type RoomLiveProps = {
   initialMessages: ChatMessage[];
   canPromptAi: boolean;
   isOwner: boolean;
+  readOnly?: boolean;
   inviteSection?: ReactNode;
 };
 
@@ -27,6 +28,7 @@ export function RoomLive({
   initialMessages,
   canPromptAi,
   isOwner,
+  readOnly = false,
   inviteSection,
 }: RoomLiveProps) {
   const { participants, authorNames } = useRoomParticipants(
@@ -44,16 +46,19 @@ export function RoomLive({
         initialMessages={initialMessages}
         canPromptAi={canPromptAi}
         authorNames={authorNames}
+        readOnly={readOnly}
       />
 
-      {inviteSection}
+      {!readOnly ? inviteSection : null}
 
-      <ParticipantList
-        roomId={roomId}
-        participants={participants}
-        currentUserId={userId}
-        isOwner={isOwner}
-      />
+      {!readOnly ? (
+        <ParticipantList
+          roomId={roomId}
+          participants={participants}
+          currentUserId={userId}
+          isOwner={isOwner}
+        />
+      ) : null}
     </div>
   );
 }

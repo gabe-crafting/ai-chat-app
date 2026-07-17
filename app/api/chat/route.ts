@@ -1,11 +1,9 @@
-import { streamText, type ModelMessage } from "ai";
+import { streamText } from "ai";
 import { NextResponse } from "next/server";
 
+import { messagesToModelHistory } from "@/lib/ai/chat-context";
 import { getChatErrorResponse } from "@/lib/ai/chat-errors";
-import {
-  buildUserModelContent,
-  formatUserLine,
-} from "@/lib/ai/message-content";
+import { buildUserModelContent } from "@/lib/ai/message-content";
 import {
   modelSupportsImageOutput,
   modelSupportsVision,
@@ -130,7 +128,7 @@ export async function POST(request: Request) {
 
   const prompterName = profile?.display_name ?? "User";
 
-  let replyContext: { authorName: string; content: string } | null = null;
+  let replyContext: { content: string } | null = null;
   let replyImageUrl: string | null = null;
 
   if (replyToId) {
@@ -143,7 +141,6 @@ export async function POST(request: Request) {
     if (replyTarget) {
       const mapped = mapMessageRow(replyTarget, { [user.id]: prompterName });
       replyContext = {
-        authorName: mapped.authorName,
         content: mapped.content,
       };
       replyImageUrl = mapped.imageUrl;
@@ -179,8 +176,7 @@ export async function POST(request: Request) {
     .from("messages")
     .select(MESSAGE_SELECT)
     .eq("room_id", roomId)
-    .order("created_at", { ascending: true })
-    .limit(40);
+    .order("created_at", { ascending: true });
 
   if (historyError) {
     return NextResponse.json(
@@ -194,21 +190,7 @@ export async function POST(request: Request) {
     (history ?? []).map((row) => mapMessageRow(row, authorNames)),
   );
 
-  const historyMessages: ModelMessage[] = [];
-
-  for (const mapped of mappedHistory) {
-    if (mapped.role === "assistant") {
-      historyMessages.push({ role: "assistant", content: mapped.content });
-      continue;
-    }
-
-    if (mapped.role === "user") {
-      historyMessages.push({
-        role: "user",
-        content: buildUserModelContent(mapped, model),
-      });
-    }
-  }
+  const historyMessages = messagesToModelHistory(mappedHistory, model);
 
   const { data: promptRow, error: promptError } = await supabase
     .from("messages")
@@ -239,15 +221,24 @@ export async function POST(request: Request) {
   const latestUserContent = buildUserModelContent(
     {
       ...promptMessage,
-      content: formatUserLine(prompterName, savedPromptContent, replyContext),
+      content: savedPromptContent,
       imageUrl: imageUrl ?? replyImageUrl ?? promptMessage.imageUrl,
+      replyTo: replyContext
+        ? {
+            id: replyToId ?? "",
+            authorName: "",
+            content: replyContext.content,
+            role: "user",
+            imageUrl: replyImageUrl,
+          }
+        : promptMessage.replyTo,
     },
     model,
   );
 
   const systemPrompt = modelSupportsImageOutput(model)
-    ? "You are a helpful assistant in a group chat room. You can analyze images and create or edit images when asked. Respond clearly; when generating or editing an image, also include a short text description."
-    : "You are a helpful assistant participating in a group chat room. Respond clearly and concisely to the latest user message.";
+    ? "You are a helpful assistant in a group chat room. You can analyze images and create or edit images when asked. Messages appear in chronological order. Respond clearly; when generating or editing an image, also include a short text description."
+    : "You are a helpful assistant participating in a group chat room. Messages appear in chronological order. Respond clearly and concisely to the latest user message.";
 
   try {
     await broadcaster.send("ai-token", {

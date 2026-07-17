@@ -1,10 +1,24 @@
-import { redirect } from "next/navigation";
-
+import { isAdminViewer } from "@/lib/auth/admin-viewer";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Tables } from "@/lib/database.types";
 
 export type RoomWithRole = Tables<"rooms"> & {
-  role: Tables<"room_participants">["role"];
+  role?: Tables<"room_participants">["role"];
+  readOnly?: boolean;
+};
+
+export type RoomPageAccess = {
+  room: Pick<
+    Tables<"rooms">,
+    "id" | "name" | "invite_code" | "model" | "created_at" | "created_by"
+  >;
+  participant: Pick<
+    Tables<"room_participants">,
+    "role" | "can_prompt_ai"
+  >;
+  readOnly: boolean;
+  isOwner: boolean;
 };
 
 export async function getRoomsForUser(): Promise<RoomWithRole[]> {
@@ -15,6 +29,20 @@ export async function getRoomsForUser(): Promise<RoomWithRole[]> {
 
   if (!user) {
     return [];
+  }
+
+  if (isAdminViewer(user)) {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("rooms")
+      .select("id, name, invite_code, model, created_at, created_by")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    return (data ?? []).map((room) => ({ ...room, readOnly: true }));
   }
 
   const { data, error } = await supabase
@@ -33,6 +61,51 @@ export async function getRoomsForUser(): Promise<RoomWithRole[]> {
     const { room_participants: _, ...room } = row;
     return { ...room, role };
   });
+}
+
+export async function getRoomPageAccess(
+  roomId: string,
+): Promise<RoomPageAccess | null> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return null;
+  }
+
+  if (isAdminViewer(user)) {
+    const admin = createAdminClient();
+    const { data: room, error } = await admin
+      .from("rooms")
+      .select("id, name, invite_code, model, created_at, created_by")
+      .eq("id", roomId)
+      .maybeSingle();
+
+    if (error || !room) {
+      return null;
+    }
+
+    return {
+      room,
+      participant: { role: "member", can_prompt_ai: false },
+      readOnly: true,
+      isOwner: false,
+    };
+  }
+
+  const data = await getRoomForParticipant(roomId);
+  if (!data) {
+    return null;
+  }
+
+  return {
+    room: data.room,
+    participant: data.participant,
+    readOnly: false,
+    isOwner: data.participant.role === "owner",
+  };
 }
 
 export async function getRoomForParticipant(roomId: string) {
@@ -71,7 +144,12 @@ export async function getRoomForParticipant(roomId: string) {
 
 export async function getRoomParticipants(roomId: string) {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const client = isAdminViewer(user) ? createAdminClient() : supabase;
+
+  const { data, error } = await client
     .from("room_participants")
     .select("user_id, role, can_prompt_ai, profiles(display_name)")
     .eq("room_id", roomId)

@@ -107,3 +107,18 @@ export async function broadcastParticipantKicked(
     console.error("[realtime] participant kick broadcast failed", error);
   }
 }
+
+export async function broadcastMessageAiVisibility(
+  roomId: string,
+  messageId: string,
+  hiddenFromAi: boolean,
+): Promise<void> {
+  try {
+    await broadcastRoomEvent(roomId, "message_ai_visibility", {
+      messageId,
+      hiddenFromAi,
+    });
+  } catch (error) {
+    console.error("[realtime] message AI visibility broadcast failed", error);
+  }
+}

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { CreateRoomForm } from "@/components/room/create-room-form";
 import { Button } from "@/components/ui/button";
 import { signOut } from "@/lib/auth/actions";
+import { isAdminViewer } from "@/lib/auth/admin-viewer";
 import { getUser, isAnonymousUser } from "@/lib/auth/session";
 import { getRoomsForUser } from "@/lib/rooms/queries";
 
@@ -19,12 +20,15 @@ export default async function RoomsPage() {
   }
 
   const rooms = await getRoomsForUser();
+  const adminViewer = isAdminViewer(user);
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 p-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Your rooms</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {adminViewer ? "All rooms" : "Your rooms"}
+          </h1>
           <p className="text-sm text-muted-foreground">
             Signed in as {user.email}
           </p>
@@ -36,18 +40,28 @@ export default async function RoomsPage() {
         </form>
       </div>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">Create a room</h2>
-        <CreateRoomForm />
-      </section>
+      {!adminViewer ? (
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium">Create a room</h2>
+          <CreateRoomForm />
+        </section>
+      ) : null}
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium">
-          {rooms.length === 0 ? "No rooms yet" : "Your rooms"}
+          {rooms.length === 0
+            ? adminViewer
+              ? "No rooms"
+              : "No rooms yet"
+            : adminViewer
+              ? "All rooms"
+              : "Your rooms"}
         </h2>
         {rooms.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Create a room above, then share the invite link with others.
+            {adminViewer
+              ? "No rooms have been created yet."
+              : "Create a room above, then share the invite link with others."}
           </p>
         ) : (
           <ul className="divide-y rounded-lg border">
@@ -59,9 +73,11 @@ export default async function RoomsPage() {
                 >
                   <div>
                     <p className="font-medium">{room.name}</p>
-                    <p className="text-xs text-muted-foreground capitalize">
-                      {room.role}
-                    </p>
+                    {room.role ? (
+                      <p className="text-xs text-muted-foreground capitalize">
+                        {room.role}
+                      </p>
+                    ) : null}
                   </div>
                   <span className="text-xs text-muted-foreground">Open →</span>
                 </Link>

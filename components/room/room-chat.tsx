@@ -6,7 +6,7 @@ import { Composer } from "@/components/room/composer";
 import { MessageList } from "@/components/room/message-list";
 import type { AiStreamEvent, PendingAiMessage } from "@/lib/rooms/ai-stream";
 import { getModelLabel, normalizeModelId } from "@/lib/ai/models";
-import { sendRoomMessage } from "@/lib/rooms/actions";
+import { sendRoomMessage, setMessageHiddenFromAi } from "@/lib/rooms/actions";
 import type { ChatMessage } from "@/lib/rooms/message-utils";
 import { enrichReplyAuthors } from "@/lib/rooms/message-utils";
 import { createClient } from "@/lib/supabase/client";
@@ -18,6 +18,7 @@ type RoomChatProps = {
   initialMessages: ChatMessage[];
   canPromptAi: boolean;
   authorNames: Record<string, string>;
+  readOnly?: boolean;
 };
 
 function appendMessage(
@@ -52,6 +53,7 @@ export function RoomChat({
   initialMessages,
   canPromptAi,
   authorNames,
+  readOnly = false,
 }: RoomChatProps) {
   const [messages, setMessages] = useState(() =>
     enrichReplyAuthors(initialMessages),
@@ -118,6 +120,20 @@ export function RoomChat({
             current?.streamId === event.streamId ? null : current,
           );
         }
+      })
+      .on("broadcast", { event: "message_ai_visibility" }, ({ payload }) => {
+        const { messageId, hiddenFromAi } = payload as {
+          messageId: string;
+          hiddenFromAi: boolean;
+        };
+
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === messageId
+              ? { ...message, hiddenFromAi }
+              : message,
+          ),
+        );
       })
       .subscribe();
 
@@ -203,6 +219,34 @@ export function RoomChat({
     [roomId],
   );
 
+  const handleHiddenFromAiChange = useCallback(
+    async (messageId: string, hiddenFromAi: boolean) => {
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === messageId ? { ...message, hiddenFromAi } : message,
+        ),
+      );
+
+      const result = await setMessageHiddenFromAi(
+        roomId,
+        messageId,
+        hiddenFromAi,
+      );
+
+      if (result.error) {
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === messageId
+              ? { ...message, hiddenFromAi: !hiddenFromAi }
+              : message,
+          ),
+        );
+        throw new Error(result.error);
+      }
+    },
+    [roomId],
+  );
+
   return (
     <section className="flex min-h-[420px] flex-col overflow-hidden rounded-lg border">
       <MessageList
@@ -210,16 +254,21 @@ export function RoomChat({
         pendingAi={pendingAi}
         currentUserId={userId}
         onReply={setReplyTarget}
+        readOnly={readOnly}
+        canManageAiContext={canPromptAi && !readOnly}
+        onHiddenFromAiChange={handleHiddenFromAiChange}
       />
-      <Composer
-        roomId={roomId}
-        canPromptAi={canPromptAi}
-        roomModel={roomModel}
-        replyTarget={replyTarget}
-        onClearReply={() => setReplyTarget(null)}
-        onSendMessage={sendMessage}
-        onSendAiPrompt={canPromptAi ? sendAiPrompt : undefined}
-      />
+      {!readOnly ? (
+        <Composer
+          roomId={roomId}
+          canPromptAi={canPromptAi}
+          roomModel={roomModel}
+          replyTarget={replyTarget}
+          onClearReply={() => setReplyTarget(null)}
+          onSendMessage={sendMessage}
+          onSendAiPrompt={canPromptAi ? sendAiPrompt : undefined}
+        />
+      ) : null}
     </section>
   );
 }
