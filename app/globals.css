@@ -128,3 +128,53 @@
     @apply font-sans;
   }
 }
+
+@layer components {
+  .markdown-content {
+    @apply space-y-2 text-sm leading-relaxed;
+  }
+
+  .markdown-content :where(p):not(:where([class~="not-markdown"] *)) {
+    @apply whitespace-pre-wrap break-words;
+  }
+
+  .markdown-content :where(h1, h2, h3, h4):not(:where([class~="not-markdown"] *)) {
+    @apply font-semibold tracking-tight;
+  }
+
+  .markdown-content :where(h1):not(:where([class~="not-markdown"] *)) {
+    @apply text-lg;
+  }
+
+  .markdown-content :where(h2):not(:where([class~="not-markdown"] *)) {
+    @apply text-base;
+  }
+
+  .markdown-content :where(h3, h4):not(:where([class~="not-markdown"] *)) {
+    @apply text-sm;
+  }
+
+  .markdown-content :where(ul, ol):not(:where([class~="not-markdown"] *)) {
+    @apply ml-4 space-y-1;
+  }
+
+  .markdown-content :where(ul):not(:where([class~="not-markdown"] *)) {
+    @apply list-disc;
+  }
+
+  .markdown-content :where(ol):not(:where([class~="not-markdown"] *)) {
+    @apply list-decimal;
+  }
+
+  .markdown-content :where(blockquote):not(:where([class~="not-markdown"] *)) {
+    @apply border-l-2 border-muted-foreground/40 pl-3 text-muted-foreground;
+  }
+
+  .markdown-content :where(table):not(:where([class~="not-markdown"] *)) {
+    @apply w-full border-collapse text-xs;
+  }
+
+  .markdown-content :where(th, td):not(:where([class~="not-markdown"] *)) {
+    @apply border border-border px-2 py-1 align-top;
+  }
+}

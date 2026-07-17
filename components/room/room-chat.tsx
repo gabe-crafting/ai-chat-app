@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Composer } from "@/components/room/composer";
 import { MessageList } from "@/components/room/message-list";
 import type { AiStreamEvent, PendingAiMessage } from "@/lib/rooms/ai-stream";
+import { readApiJson } from "@/lib/api/parse-response";
 import { getModelLabel, normalizeModelId } from "@/lib/ai/models";
 import { sendRoomMessage, setMessageHiddenFromAi } from "@/lib/rooms/actions";
 import type { ChatMessage } from "@/lib/rooms/message-utils";
@@ -46,6 +47,61 @@ function withAuthorName(
   return message;
 }
 
+function waitForAssistantReply(
+  getMessages: () => ChatMessage[],
+  promptMessageId: string,
+  timeoutMs = 15000,
+) {
+  return new Promise<boolean>((resolve) => {
+    const started = Date.now();
+
+    const check = () => {
+      const found = getMessages().some(
+        (message) =>
+          message.role === "assistant" && message.replyToId === promptMessageId,
+      );
+      if (found) {
+        resolve(true);
+        return;
+      }
+      if (Date.now() - started >= timeoutMs) {
+        resolve(false);
+        return;
+      }
+      window.setTimeout(check, 200);
+    };
+
+    check();
+  });
+}
+
+function waitForNewAssistantMessage(
+  getMessages: () => ChatMessage[],
+  previousAssistantCount: number,
+  timeoutMs = 15000,
+) {
+  return new Promise<boolean>((resolve) => {
+    const started = Date.now();
+
+    const check = () => {
+      const assistantCount = getMessages().filter(
+        (message) => message.role === "assistant",
+      ).length;
+      if (assistantCount > previousAssistantCount) {
+        resolve(true);
+        return;
+      }
+      if (Date.now() - started >= timeoutMs) {
+        resolve(false);
+        return;
+      }
+      window.setTimeout(check, 200);
+    };
+
+    check();
+  });
+}
+
 export function RoomChat({
   roomId,
   userId,
@@ -62,6 +118,8 @@ export function RoomChat({
   const [replyTarget, setReplyTarget] = useState<ChatMessage | null>(null);
   const authorNamesRef = useRef(authorNames);
   authorNamesRef.current = authorNames;
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
 
   useEffect(() => {
     setMessages((current) =>
@@ -177,6 +235,10 @@ export function RoomChat({
       model: string,
       imageUrl?: string | null,
     ) => {
+      const assistantCountBefore = messagesRef.current.filter(
+        (message) => message.role === "assistant",
+      ).length;
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -189,17 +251,13 @@ export function RoomChat({
         }),
       });
 
-      const data = (await response.json()) as {
+      const { data, error } = await readApiJson<{
         error?: string;
         promptMessage?: ChatMessage;
         message?: ChatMessage;
-      };
+      }>(response);
 
-      if (!response.ok) {
-        throw new Error(data.error ?? "Failed to prompt the AI.");
-      }
-
-      if (data.promptMessage) {
+      if (data?.promptMessage) {
         const promptMessage = withAuthorName(
           data.promptMessage,
           authorNamesRef.current,
@@ -207,13 +265,38 @@ export function RoomChat({
         setMessages((current) => appendMessage(current, promptMessage));
       }
 
-      if (data.message) {
+      if (data?.message) {
         const message = withAuthorName(
           data.message,
           authorNamesRef.current,
         );
         setMessages((current) => appendMessage(current, message));
         setPendingAi(null);
+        return;
+      }
+
+      if (error) {
+        const promptMessageId = data?.promptMessage?.id;
+        const delivered = promptMessageId
+          ? await waitForAssistantReply(
+              () => messagesRef.current,
+              promptMessageId,
+            )
+          : await waitForNewAssistantMessage(
+              () => messagesRef.current,
+              assistantCountBefore,
+            );
+
+        if (delivered) {
+          setPendingAi(null);
+          return;
+        }
+
+        throw new Error(error);
+      }
+
+      if (!response.ok) {
+        throw new Error("Failed to prompt the AI.");
       }
     },
     [roomId],

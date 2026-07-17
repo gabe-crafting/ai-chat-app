@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { ImageAttachment } from "@/components/room/image-attachment";
 import { ModelSelect } from "@/components/room/model-select";
+import { readApiJson } from "@/lib/api/parse-response";
 import { normalizeModelId } from "@/lib/ai/models";
 import type { ChatMessage } from "@/lib/rooms/message-utils";
 import { useHydrated } from "@/lib/use-hydrated";
@@ -45,13 +46,15 @@ async function uploadAttachment(roomId: string, file: File | null) {
     body: formData,
   });
 
-  const data = (await response.json()) as { url?: string; error?: string };
+  const { data, error } = await readApiJson<{ url?: string; error?: string }>(
+    response,
+  );
 
-  if (!response.ok) {
-    throw new Error(data.error ?? "Failed to upload image.");
+  if (error) {
+    throw new Error(error);
   }
 
-  if (!data.url) {
+  if (!data?.url) {
     throw new Error("Failed to upload image.");
   }
 

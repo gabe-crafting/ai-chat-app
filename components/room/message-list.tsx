@@ -2,7 +2,9 @@
 
 import { useEffect, useRef } from "react";
 
+import { CopyTextButton } from "@/components/room/copy-text-button";
 import { MessageImage } from "@/components/room/image-attachment";
+import { MarkdownContent } from "@/components/room/markdown-content";
 import type { PendingAiMessage } from "@/lib/rooms/ai-stream";
 import type { ChatMessage } from "@/lib/rooms/message-utils";
 import { Button } from "@/components/ui/button";
@@ -84,6 +86,12 @@ export function MessageList({
           >
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <p className="text-xs text-muted-foreground">{message.authorName}</p>
+              {isAssistant && message.content ? (
+                <CopyTextButton
+                  text={message.content}
+                  className="h-auto px-1 py-0 text-[0.625rem] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                />
+              ) : null}
               {!readOnly ? (
                 <Button
                   type="button"
@@ -124,7 +132,11 @@ export function MessageList({
             >
               {message.replyTo ? <ReplyQuote reply={message.replyTo} /> : null}
               {message.content ? (
-                <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                isAssistant ? (
+                  <MarkdownContent content={message.content} />
+                ) : (
+                  <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                )
               ) : null}
               {message.imageUrl ? (
                 <MessageImage
@@ -138,8 +150,16 @@ export function MessageList({
       })}
 
       {pendingAi ? (
-        <article className="flex max-w-[85%] flex-col items-start gap-1">
-          <p className="text-xs text-muted-foreground">{pendingAi.model}</p>
+        <article className="group flex max-w-[85%] flex-col items-start gap-1">
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-muted-foreground">{pendingAi.model}</p>
+            {pendingAi.content ? (
+              <CopyTextButton
+                text={pendingAi.content}
+                className="h-auto px-1 py-0 text-[0.625rem] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+              />
+            ) : null}
+          </div>
           <div className="rounded-lg border bg-muted/50 px-3 py-2 text-sm">
             {promptMessage ? (
               <ReplyQuote
@@ -152,9 +172,11 @@ export function MessageList({
                 }}
               />
             ) : null}
-            <p className="whitespace-pre-wrap break-words">
-              {pendingAi.content || "Thinking…"}
-            </p>
+            {pendingAi.content ? (
+              <MarkdownContent content={pendingAi.content} />
+            ) : (
+              <p className="text-muted-foreground">Thinking…</p>
+            )}
             {promptMessage?.imageUrl ? (
               <MessageImage
                 src={promptMessage.imageUrl}
