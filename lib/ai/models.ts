@@ -23,6 +23,24 @@ export const AI_MODELS = [
     vision: true,
     imageOutput: false,
   },
+  {
+    id: "x-ai/grok-4.5",
+    label: "Grok 4.5",
+    vision: true,
+    imageOutput: false,
+  },
+  {
+    id: "tencent/hy3",
+    label: "Tencent Hy3",
+    vision: false,
+    imageOutput: false,
+  },
+  {
+    id: "nvidia/nemotron-3-ultra-550b-a55b",
+    label: "Nemotron 3 Ultra",
+    vision: false,
+    imageOutput: false,
+  },
 ] as const;
 
 export type AiModelId = (typeof AI_MODELS)[number]["id"];

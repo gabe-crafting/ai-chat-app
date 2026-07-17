@@ -107,7 +107,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "This model cannot analyze images. Choose GPT-4o Mini, Grok 4.3, or Gemini Image.",
+          "This model cannot analyze images. Choose a vision-capable model (e.g. GPT-4o Mini, Grok, or Gemini Image).",
       },
       { status: 400 },
     );
@@ -158,7 +158,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "This model cannot analyze images. Choose GPT-4o Mini, Grok 4.3, or Gemini Image.",
+          "This model cannot analyze images. Choose a vision-capable model (e.g. GPT-4o Mini, Grok, or Gemini Image).",
       },
       { status: 400 },
     );
