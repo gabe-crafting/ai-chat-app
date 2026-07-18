@@ -39,7 +39,8 @@ export async function getRoomsForUser(): Promise<RoomWithRole[]> {
       .order("created_at", { ascending: false });
 
     if (error) {
-      throw error;
+      console.error("[rooms/getRoomsForUser/admin]", error);
+      return [];
     }
 
     return (data ?? []).map((room) => ({ ...room, readOnly: true }));
@@ -52,7 +53,8 @@ export async function getRoomsForUser(): Promise<RoomWithRole[]> {
     .order("created_at", { ascending: false });
 
   if (error) {
-    throw error;
+    console.error("[rooms/getRoomsForUser]", error);
+    return [];
   }
 
   return (data ?? []).map((row) => {
@@ -156,7 +158,8 @@ export async function getRoomParticipants(roomId: string) {
     .order("joined_at", { ascending: true });
 
   if (error) {
-    throw error;
+    console.error("[rooms/getRoomParticipants]", error);
+    return [];
   }
 
   return (data ?? []).map((row) => {
