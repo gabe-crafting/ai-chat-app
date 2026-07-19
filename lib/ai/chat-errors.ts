@@ -22,14 +22,18 @@ export function formatChatErrorMessage(
   return raw;
 }
 
+function unwrapChatError(error: unknown): unknown {
+  if (NoOutputGeneratedError.isInstance(error) && error.cause) {
+    return error.cause;
+  }
+  return error;
+}
+
 export function getChatErrorResponse(error: unknown): {
   message: string;
   status: number;
 } {
-  const resolved =
-    NoOutputGeneratedError.isInstance(error) && error.cause
-      ? error.cause
-      : error;
+  const resolved = unwrapChatError(error);
 
   if (APICallError.isInstance(resolved)) {
     const apiMessage = (
@@ -44,10 +48,20 @@ export function getChatErrorResponse(error: unknown): {
   }
 
   if (resolved instanceof Error) {
-    return {
-      message: formatChatErrorMessage(resolved.message),
-      status: 500,
-    };
+    const message = formatChatErrorMessage(resolved.message);
+    // Surface a clearer fallback when the stream died with no provider message.
+    if (
+      NoOutputGeneratedError.isInstance(error) &&
+      (!message || message === "No output generated. Check the stream for errors.")
+    ) {
+      return {
+        message:
+          "The model returned no text (often a tool/search step failed). Try again or pick another model.",
+        status: 502,
+      };
+    }
+
+    return { message, status: 500 };
   }
 
   return { message: "Failed to generate response.", status: 500 };

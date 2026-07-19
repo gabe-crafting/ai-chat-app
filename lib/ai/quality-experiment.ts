@@ -1,3 +1,5 @@
+import type { OpenRouterChatSettings } from "@openrouter/ai-sdk-provider";
+
 import { env } from "@/lib/env";
 
 /**
@@ -6,18 +8,30 @@ import { env } from "@/lib/env";
  * Enable only on non-prod deploys with:
  *   AI_QUALITY_EXPERIMENT=1
  *
- * Treatment vs control (current prod path):
+ * Shared treatment (all models):
  * - Richer multi-speaker system prompt (no "be concise")
  * - Speaker labels in model history
- * - OpenRouter reasoning (medium, hidden from clients)
- * - Native web plugin (web + X search for xAI)
- * - Higher output budget (reasoning needs headroom)
+ * - Higher output budget
+ *
+ * Grok-only extras:
+ * - Medium reasoning (hidden from clients)
+ * - Web plugin (native web + X search on xAI; auto elsewhere)
+ *
+ * Important: web/search uses tool calls, so the chat route must raise
+ * streamText stopWhen above the default stepCountIs(1).
  */
 
 export const AI_QUALITY_EXPERIMENT_MAX_OUTPUT_TOKENS = 16_384;
 
+/** Allow tool-using web search to run a few rounds before finishing. */
+export const AI_QUALITY_EXPERIMENT_MAX_STEPS = 5;
+
 export function isAiQualityExperimentEnabled(): boolean {
   return env.aiQualityExperiment;
+}
+
+export function modelSupportsExperimentTools(modelId: string): boolean {
+  return modelId.startsWith("x-ai/");
 }
 
 export function getExperimentSystemPrompt(supportsImageOutput: boolean): string {
@@ -46,17 +60,23 @@ export function getBaselineSystemPrompt(supportsImageOutput: boolean): string {
 }
 
 /** OpenRouter model settings for the treatment arm. */
-export function getExperimentModelSettings() {
+export function getExperimentModelSettings(
+  modelId: string,
+): OpenRouterChatSettings | null {
+  if (!modelSupportsExperimentTools(modelId)) {
+    return null;
+  }
+
   return {
     plugins: [
       {
-        id: "web" as const,
-        engine: "native" as const,
+        id: "web",
+        // Omit engine so OpenRouter uses native on xAI and falls back elsewhere.
         max_results: 5,
       },
     ],
     reasoning: {
-      effort: "medium" as const,
+      effort: "medium",
       exclude: true,
     },
   };

@@ -1,4 +1,4 @@
-import { streamText } from "ai";
+import { stepCountIs, streamText } from "ai";
 import { NextResponse } from "next/server";
 
 import { messagesToModelHistory } from "@/lib/ai/chat-context";
@@ -12,6 +12,7 @@ import {
 import { AI_MAX_OUTPUT_TOKENS, getOpenRouter } from "@/lib/ai/openrouter";
 import {
   AI_QUALITY_EXPERIMENT_MAX_OUTPUT_TOKENS,
+  AI_QUALITY_EXPERIMENT_MAX_STEPS,
   getBaselineSystemPrompt,
   getExperimentModelSettings,
   getExperimentSystemPrompt,
@@ -264,7 +265,7 @@ export async function POST(request: Request) {
 
     const openrouter = getOpenRouter();
     const experimentSettings = qualityExperiment
-      ? getExperimentModelSettings()
+      ? getExperimentModelSettings(model)
       : null;
     const result = streamText({
       model: experimentSettings
@@ -273,6 +274,10 @@ export async function POST(request: Request) {
       maxOutputTokens: qualityExperiment
         ? AI_QUALITY_EXPERIMENT_MAX_OUTPUT_TOKENS
         : AI_MAX_OUTPUT_TOKENS,
+      // Web/search plugins issue tool calls; default stopWhen is 1 step → empty text.
+      ...(experimentSettings
+        ? { stopWhen: stepCountIs(AI_QUALITY_EXPERIMENT_MAX_STEPS) }
+        : {}),
       system: systemPrompt,
       messages: [
         ...historyMessages,
@@ -289,6 +294,9 @@ export async function POST(request: Request) {
             text: chunk.text,
           });
         }
+      },
+      onError: ({ error }) => {
+        console.error("[api/chat] stream error", error);
       },
     });
 
