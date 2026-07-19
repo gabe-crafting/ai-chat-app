@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { AuthLinkHandler } from "@/components/auth/auth-link-handler";
+import { AuthSessionListener } from "@/components/auth/auth-session-listener";
 import { DeployRecovery } from "@/components/deploy-recovery";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,7 @@ export default function RootLayout({
         <TooltipProvider>
           <DeployRecovery />
           <AuthLinkHandler />
+          <AuthSessionListener />
           {children}
         </TooltipProvider>
       </body>

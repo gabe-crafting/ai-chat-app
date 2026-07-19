@@ -25,7 +25,8 @@ export async function getRoomMessages(roomId: string): Promise<ChatMessage[]> {
     .order("created_at", { ascending: true });
 
   if (error) {
-    throw error;
+    console.error("[rooms/getRoomMessages]", error);
+    return [];
   }
 
   const messages = (data ?? []).map((row) => mapMessageRow(row));

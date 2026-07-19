@@ -7,6 +7,7 @@ type LoginPageProps = {
   searchParams: Promise<{
     next?: string;
     error?: string;
+    reason?: string;
   }>;
 };
 
@@ -18,10 +19,15 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     redirect(params.next?.startsWith("/") ? params.next : "/rooms");
   }
 
+  const reasonMessage =
+    params.reason === "session_expired"
+      ? "Your session expired or you signed in on another device. Please sign in again."
+      : undefined;
+
   return (
     <LoginForm
       next={params.next?.startsWith("/") ? params.next : "/rooms"}
-      error={params.error}
+      error={params.error ?? reasonMessage}
     />
   );
 }

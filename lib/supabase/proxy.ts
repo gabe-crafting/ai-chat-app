@@ -50,8 +50,8 @@ function forwardAuthParams(request: NextRequest) {
   return null;
 }
 
-function isAnonymousClaim(claims: Record<string, unknown>) {
-  return claims.is_anonymous === true;
+function isAnonymousUser(user: { is_anonymous?: boolean }) {
+  return user.is_anonymous === true;
 }
 
 export async function updateSession(request: NextRequest) {
@@ -81,8 +81,11 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const { data } = await supabase.auth.getClaims();
-  const claims = data?.claims as Record<string, unknown> | undefined;
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+  const hasValidUser = !!user && !authError;
   const pathname = request.nextUrl.pathname;
 
   const authForward = forwardAuthParams(request);
@@ -90,14 +93,20 @@ export async function updateSession(request: NextRequest) {
     return authForward;
   }
 
-  if (!claims && !isPublicPath(pathname)) {
+  if (!hasValidUser && !isPublicPath(pathname)) {
+    await supabase.auth.signOut();
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname);
+    url.searchParams.set("reason", "session_expired");
     return NextResponse.redirect(url);
   }
 
-  if (claims && pathname === "/login" && !isAnonymousClaim(claims)) {
+  if (!hasValidUser && pathname === "/login") {
+    await supabase.auth.signOut();
+  }
+
+  if (hasValidUser && !isAnonymousUser(user) && pathname === "/login") {
     const next = request.nextUrl.searchParams.get("next");
     const url = request.nextUrl.clone();
     url.pathname = next?.startsWith("/") ? next : "/rooms";
@@ -105,7 +114,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (claims && isAnonymousClaim(claims) && pathname === "/rooms") {
+  if (hasValidUser && isAnonymousUser(user) && pathname === "/rooms") {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     url.searchParams.set("error", "guest_no_rooms");
