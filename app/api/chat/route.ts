@@ -10,6 +10,13 @@ import {
   normalizeModelId,
 } from "@/lib/ai/models";
 import { AI_MAX_OUTPUT_TOKENS, getOpenRouter } from "@/lib/ai/openrouter";
+import {
+  AI_QUALITY_EXPERIMENT_MAX_OUTPUT_TOKENS,
+  getBaselineSystemPrompt,
+  getExperimentModelSettings,
+  getExperimentSystemPrompt,
+  isAiQualityExperimentEnabled,
+} from "@/lib/ai/quality-experiment";
 import { uploadGeneratedRoomImage } from "@/lib/rooms/image-storage";
 import { mapMessageWithReply } from "@/lib/rooms/message-replies";
 import {
@@ -27,7 +34,8 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-export const maxDuration = 60;
+/** Reasoning + web search can exceed the baseline 60s budget. */
+export const maxDuration = 120;
 
 type ChatRequestBody = {
   roomId?: string;
@@ -190,7 +198,10 @@ export async function POST(request: Request) {
     (history ?? []).map((row) => mapMessageRow(row, authorNames)),
   );
 
-  const historyMessages = messagesToModelHistory(mappedHistory, model);
+  const qualityExperiment = isAiQualityExperimentEnabled();
+  const historyMessages = messagesToModelHistory(mappedHistory, model, {
+    labelSpeakers: qualityExperiment,
+  });
 
   const { data: promptRow, error: promptError } = await supabase
     .from("messages")
@@ -226,7 +237,7 @@ export async function POST(request: Request) {
       replyTo: replyContext
         ? {
             id: replyToId ?? "",
-            authorName: "",
+            authorName: promptMessage.replyTo?.authorName ?? "",
             content: replyContext.content,
             role: "user",
             imageUrl: replyImageUrl,
@@ -234,11 +245,13 @@ export async function POST(request: Request) {
         : promptMessage.replyTo,
     },
     model,
+    { labelSpeaker: qualityExperiment },
   );
 
-  const systemPrompt = modelSupportsImageOutput(model)
-    ? "You are a helpful assistant in a group chat room. You can analyze images and create or edit images when asked. Messages appear in chronological order. Respond clearly; when generating or editing an image, also include a short text description."
-    : "You are a helpful assistant participating in a group chat room. Messages appear in chronological order. Respond clearly and concisely to the latest user message.";
+  const supportsImageOutput = modelSupportsImageOutput(model);
+  const systemPrompt = qualityExperiment
+    ? getExperimentSystemPrompt(supportsImageOutput)
+    : getBaselineSystemPrompt(supportsImageOutput);
 
   try {
     await broadcaster.send("ai-token", {
@@ -250,9 +263,16 @@ export async function POST(request: Request) {
     });
 
     const openrouter = getOpenRouter();
+    const experimentSettings = qualityExperiment
+      ? getExperimentModelSettings()
+      : null;
     const result = streamText({
-      model: openrouter.chat(model),
-      maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
+      model: experimentSettings
+        ? openrouter.chat(model, experimentSettings)
+        : openrouter.chat(model),
+      maxOutputTokens: qualityExperiment
+        ? AI_QUALITY_EXPERIMENT_MAX_OUTPUT_TOKENS
+        : AI_MAX_OUTPUT_TOKENS,
       system: systemPrompt,
       messages: [
         ...historyMessages,

@@ -10,24 +10,45 @@ function truncate(text: string, max: number) {
 
 export function formatModelMessageText(
   content: string,
-  replyTo?: { content: string } | null,
+  replyTo?: { content: string; authorName?: string } | null,
+  options?: { labelSpeaker?: boolean; speakerName?: string },
 ) {
-  const body = content.trim() || "(image)";
+  let body = content.trim() || "(image)";
+
+  if (options?.labelSpeaker && options.speakerName) {
+    body = `[${options.speakerName}]: ${body}`;
+  }
 
   if (!replyTo?.content.trim()) {
     return body;
   }
 
-  return `[Replying to: "${truncate(replyTo.content.trim(), 160)}"] ${body}`;
+  const replyAuthor = replyTo.authorName?.trim();
+  const replyLabel =
+    options?.labelSpeaker && replyAuthor
+      ? `${replyAuthor}: "${truncate(replyTo.content.trim(), 160)}"`
+      : `"${truncate(replyTo.content.trim(), 160)}"`;
+
+  return `[Replying to: ${replyLabel}] ${body}`;
 }
 
 export function buildUserModelContent(
   message: ChatMessage,
   modelId: string,
+  options?: { labelSpeaker?: boolean },
 ): UserContent {
   const text = formatModelMessageText(
     message.content,
-    message.replyTo ? { content: message.replyTo.content } : null,
+    message.replyTo
+      ? {
+          content: message.replyTo.content,
+          authorName: message.replyTo.authorName,
+        }
+      : null,
+    {
+      labelSpeaker: options?.labelSpeaker,
+      speakerName: message.authorName,
+    },
   );
 
   if (!message.imageUrl) {

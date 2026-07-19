@@ -6,7 +6,9 @@ import type { ChatMessage } from "@/lib/rooms/message-utils";
 export function messagesToModelHistory(
   messages: ChatMessage[],
   modelId: string,
+  options?: { labelSpeakers?: boolean },
 ): ModelMessage[] {
+  const labelSpeakers = options?.labelSpeakers ?? false;
   const hiddenIds = new Set(
     messages.filter((message) => message.hiddenFromAi).map((message) => message.id),
   );
@@ -23,9 +25,12 @@ export function messagesToModelHistory(
         : message;
 
     if (contextMessage.role === "assistant") {
+      const content = labelSpeakers
+        ? `[${contextMessage.authorName}]: ${contextMessage.content}`
+        : contextMessage.content;
       historyMessages.push({
         role: "assistant",
-        content: contextMessage.content,
+        content,
       });
       continue;
     }
@@ -33,13 +38,18 @@ export function messagesToModelHistory(
     if (contextMessage.role === "user") {
       historyMessages.push({
         role: "user",
-        content: buildUserModelContent(contextMessage, modelId),
+        content: buildUserModelContent(contextMessage, modelId, {
+          labelSpeaker: labelSpeakers,
+        }),
       });
       continue;
     }
 
     if (contextMessage.role === "system" && contextMessage.content.trim()) {
-      historyMessages.push({ role: "user", content: contextMessage.content });
+      const content = labelSpeakers
+        ? `[System]: ${contextMessage.content}`
+        : contextMessage.content;
+      historyMessages.push({ role: "user", content });
     }
   }
 
