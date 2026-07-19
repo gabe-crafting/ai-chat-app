@@ -35,7 +35,8 @@ export function LoginForm({ next = "/rooms", error }: LoginFormProps) {
         <CardTitle>Sign in</CardTitle>
         <CardDescription>
           Use the email and password from your Supabase invite. Public sign-up
-          is disabled.
+          is disabled. If you only received a room link, open that link instead
+          of signing in here.
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -26,6 +26,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           Multi-user chat rooms with shared AI streaming. Full accounts are
           invite-only; room guests join via a link.
         </p>
+        <p className="text-sm text-muted-foreground">
+          Got a room invite? Open that link directly — do not use{" "}
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">/rooms</code>{" "}
+          unless you already have a full account.
+        </p>
       </div>
 
       {guestMessage ? (
