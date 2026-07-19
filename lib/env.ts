@@ -38,6 +38,11 @@ export const env = {
     return required("OPENROUTER_API_KEY");
   },
 
+  /** Preview/dev-only AI quality treatment. Never enable on production. */
+  get aiQualityExperiment() {
+    return process.env.AI_QUALITY_EXPERIMENT === "1";
+  },
+
   get cloudinaryCloudName() {
     return required("CLOUDINARY_CLOUD_NAME");
   },
