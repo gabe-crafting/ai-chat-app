@@ -41,6 +41,12 @@ export const AI_MODELS = [
     vision: false,
     imageOutput: false,
   },
+  {
+    id: "moonshotai/kimi-k3",
+    label: "Kimi K3",
+    vision: true,
+    imageOutput: false,
+  },
 ] as const;
 
 export type AiModelId = (typeof AI_MODELS)[number]["id"];
