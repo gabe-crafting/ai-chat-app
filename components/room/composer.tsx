@@ -8,8 +8,8 @@ import { readApiJson } from "@/lib/api/parse-response";
 import { normalizeModelId } from "@/lib/ai/models";
 import type { ChatMessage } from "@/lib/rooms/message-utils";
 import { useHydrated } from "@/lib/use-hydrated";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 type ComposerProps = {
@@ -170,8 +170,8 @@ export function Composer({
       ) : null}
 
       <form onSubmit={handleSubmit} className="space-y-2">
-        <div className="flex gap-2">
-          <Input
+        <div className="flex items-end gap-2">
+          <AutoGrowTextarea
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             placeholder={
@@ -196,8 +196,8 @@ export function Composer({
       {canPromptAi ? (
         <form onSubmit={handleAiSubmit} className="space-y-2">
           <Label htmlFor="ai-prompt">Ask AI</Label>
-          <div className="flex items-center gap-2">
-            <Input
+          <div className="flex items-end gap-2">
+            <AutoGrowTextarea
               id="ai-prompt"
               value={aiPrompt}
               onChange={(event) => setAiPrompt(event.target.value)}
