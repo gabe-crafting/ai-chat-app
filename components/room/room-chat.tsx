@@ -8,7 +8,8 @@ import { ScrollToBottomButton } from "@/components/room/scroll-to-bottom-button"
 import type { AiStreamEvent, PendingAiMessage } from "@/lib/rooms/ai-stream";
 import { readApiJson } from "@/lib/api/parse-response";
 import { getModelLabel, normalizeModelId } from "@/lib/ai/models";
-import { sendRoomMessage, setAllMessagesHiddenFromAi, setMessageHiddenFromAi } from "@/lib/rooms/actions";
+import { sendRoomMessage, setAllMessagesHiddenFromAi, setMessageHiddenFromAi, setRoomAiReasoningEffort, setRoomAiSystemPrompt } from "@/lib/rooms/actions";
+import { normalizeAiReasoningEffort, type AiReasoningEffort } from "@/lib/ai/reasoning";
 import type { ChatMessage } from "@/lib/rooms/message-utils";
 import { enrichReplyAuthors } from "@/lib/rooms/message-utils";
 import { createClient } from "@/lib/supabase/client";
@@ -19,6 +20,9 @@ type RoomChatProps = {
   roomModel: string;
   initialMessages: ChatMessage[];
   canPromptAi: boolean;
+  isOwner: boolean;
+  aiSystemPrompt?: string;
+  aiReasoningEffort?: string;
   authorNames: Record<string, string>;
   readOnly?: boolean;
 };
@@ -109,11 +113,18 @@ export function RoomChat({
   roomModel,
   initialMessages,
   canPromptAi,
+  isOwner,
+  aiSystemPrompt: initialAiSystemPrompt = "",
+  aiReasoningEffort: initialAiReasoningEffort = "off",
   authorNames,
   readOnly = false,
 }: RoomChatProps) {
   const [messages, setMessages] = useState(() =>
     enrichReplyAuthors(initialMessages),
+  );
+  const [aiSystemPrompt, setAiSystemPrompt] = useState(initialAiSystemPrompt);
+  const [aiReasoningEffort, setAiReasoningEffort] = useState(
+    normalizeAiReasoningEffort(initialAiReasoningEffort),
   );
   const [pendingAi, setPendingAi] = useState<PendingAiMessage | null>(null);
   const [replyTarget, setReplyTarget] = useState<ChatMessage | null>(null);
@@ -122,6 +133,14 @@ export function RoomChat({
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
   const scrollBottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setAiSystemPrompt(initialAiSystemPrompt);
+  }, [initialAiSystemPrompt]);
+
+  useEffect(() => {
+    setAiReasoningEffort(normalizeAiReasoningEffort(initialAiReasoningEffort));
+  }, [initialAiReasoningEffort]);
 
   useEffect(() => {
     setMessages((current) =>
@@ -201,6 +220,16 @@ export function RoomChat({
         setMessages((current) =>
           current.map((message) => ({ ...message, hiddenFromAi })),
         );
+      })
+      .on("broadcast", { event: "room_ai_system_prompt" }, ({ payload }) => {
+        const { aiSystemPrompt: nextPrompt } = payload as {
+          aiSystemPrompt: string | null;
+        };
+        setAiSystemPrompt(nextPrompt ?? "");
+      })
+      .on("broadcast", { event: "room_ai_reasoning_effort" }, ({ payload }) => {
+        const { reasoningEffort } = payload as { reasoningEffort: string };
+        setAiReasoningEffort(normalizeAiReasoningEffort(reasoningEffort));
       })
       .subscribe();
 
@@ -364,6 +393,36 @@ export function RoomChat({
     }
   }, [roomId]);
 
+  const handleSaveAiSystemPrompt = useCallback(
+    async (prompt: string) => {
+      const result = await setRoomAiSystemPrompt(roomId, prompt);
+
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      setAiSystemPrompt(prompt.trim());
+    },
+    [roomId],
+  );
+
+  const handleAiReasoningEffortChange = useCallback(
+    async (effort: string) => {
+      const normalized = normalizeAiReasoningEffort(effort);
+      const result = await setRoomAiReasoningEffort(
+        roomId,
+        normalized as AiReasoningEffort,
+      );
+
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      setAiReasoningEffort(normalized);
+    },
+    [roomId],
+  );
+
   const allHiddenFromAi =
     messages.length > 0 && messages.every((message) => message.hiddenFromAi);
 
@@ -385,10 +444,17 @@ export function RoomChat({
         <Composer
           roomId={roomId}
           canPromptAi={canPromptAi}
+          isOwner={isOwner}
           roomModel={roomModel}
+          aiSystemPrompt={aiSystemPrompt}
+          onSaveAiSystemPrompt={isOwner ? handleSaveAiSystemPrompt : undefined}
           allHiddenFromAi={allHiddenFromAi}
           onSetAllHiddenFromAi={
             canPromptAi ? handleSetAllHiddenFromAi : undefined
+          }
+          aiReasoningEffort={aiReasoningEffort}
+          onAiReasoningEffortChange={
+            canPromptAi ? handleAiReasoningEffortChange : undefined
           }
           replyTarget={replyTarget}
           onClearReply={() => setReplyTarget(null)}

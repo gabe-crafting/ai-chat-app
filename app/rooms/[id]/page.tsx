@@ -69,6 +69,8 @@ export default async function RoomPage({ params }: RoomPageProps) {
         initialMessages={messages}
         canPromptAi={participant.can_prompt_ai}
         isOwner={isOwner}
+        aiSystemPrompt={room.ai_system_prompt ?? ""}
+        aiReasoningEffort={room.ai_reasoning_effort ?? "off"}
         readOnly={readOnly}
         inviteSection={
           isOwner ? (

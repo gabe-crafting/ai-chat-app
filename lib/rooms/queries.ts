@@ -11,7 +11,14 @@ export type RoomWithRole = Tables<"rooms"> & {
 export type RoomPageAccess = {
   room: Pick<
     Tables<"rooms">,
-    "id" | "name" | "invite_code" | "model" | "created_at" | "created_by"
+    | "id"
+    | "name"
+    | "invite_code"
+    | "model"
+    | "created_at"
+    | "created_by"
+    | "ai_system_prompt"
+    | "ai_reasoning_effort"
   >;
   participant: Pick<
     Tables<"room_participants">,
@@ -35,7 +42,7 @@ export async function getRoomsForUser(): Promise<RoomWithRole[]> {
     const admin = createAdminClient();
     const { data, error } = await admin
       .from("rooms")
-      .select("id, name, invite_code, model, created_at, created_by")
+      .select("id, name, invite_code, model, created_at, created_by, ai_system_prompt, ai_reasoning_effort")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -48,7 +55,7 @@ export async function getRoomsForUser(): Promise<RoomWithRole[]> {
 
   const { data, error } = await supabase
     .from("rooms")
-    .select("id, name, invite_code, model, created_at, created_by, room_participants!inner(role)")
+    .select("id, name, invite_code, model, created_at, created_by, ai_system_prompt, ai_reasoning_effort, room_participants!inner(role)")
     .eq("room_participants.user_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -81,7 +88,7 @@ export async function getRoomPageAccess(
     const admin = createAdminClient();
     const { data: room, error } = await admin
       .from("rooms")
-      .select("id, name, invite_code, model, created_at, created_by")
+      .select("id, name, invite_code, model, created_at, created_by, ai_system_prompt, ai_reasoning_effort")
       .eq("id", roomId)
       .maybeSingle();
 
@@ -133,7 +140,7 @@ export async function getRoomForParticipant(roomId: string) {
 
   const { data: room, error: roomError } = await supabase
     .from("rooms")
-    .select("id, name, invite_code, model, created_at, created_by")
+    .select("id, name, invite_code, model, created_at, created_by, ai_system_prompt, ai_reasoning_effort")
     .eq("id", roomId)
     .single();
 

@@ -135,3 +135,29 @@ export async function broadcastAllMessagesAiVisibility(
     console.error("[realtime] all messages AI visibility broadcast failed", error);
   }
 }
+
+export async function broadcastRoomAiSystemPrompt(
+  roomId: string,
+  aiSystemPrompt: string | null,
+): Promise<void> {
+  try {
+    await broadcastRoomEvent(roomId, "room_ai_system_prompt", {
+      aiSystemPrompt,
+    });
+  } catch (error) {
+    console.error("[realtime] room AI system prompt broadcast failed", error);
+  }
+}
+
+export async function broadcastRoomAiReasoningEffort(
+  roomId: string,
+  reasoningEffort: string,
+): Promise<void> {
+  try {
+    await broadcastRoomEvent(roomId, "room_ai_reasoning_effort", {
+      reasoningEffort,
+    });
+  } catch (error) {
+    console.error("[realtime] room AI reasoning effort broadcast failed", error);
+  }
+}

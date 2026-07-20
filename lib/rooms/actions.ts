@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import {
+  normalizeAiReasoningEffort,
+  type AiReasoningEffort,
+} from "@/lib/ai/reasoning";
 import { isAdminViewer } from "@/lib/auth/admin-viewer";
 import {
   DEFAULT_AI_MODEL,
@@ -17,6 +21,8 @@ import {
   broadcastParticipantKicked,
   broadcastMessageAiVisibility,
   broadcastAllMessagesAiVisibility,
+  broadcastRoomAiReasoningEffort,
+  broadcastRoomAiSystemPrompt,
   broadcastRoomMessage,
 } from "@/lib/rooms/realtime-broadcast";
 import { createClient } from "@/lib/supabase/server";
@@ -332,5 +338,76 @@ export async function setAllMessagesHiddenFromAi(
   }
 
   await broadcastAllMessagesAiVisibility(roomId, hiddenFromAi);
+  return {};
+}
+
+export async function setRoomAiSystemPrompt(
+  roomId: string,
+  aiSystemPrompt: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { error: "You are not signed in." };
+  }
+
+  const { data: participant, error: participantError } = await supabase
+    .from("room_participants")
+    .select("role")
+    .eq("room_id", roomId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (participantError) {
+    return { error: participantError.message };
+  }
+
+  if (participant?.role !== "owner") {
+    return { error: "Only the room owner can change the system prompt." };
+  }
+
+  const normalized = aiSystemPrompt.trim();
+  const { error } = await supabase
+    .from("rooms")
+    .update({ ai_system_prompt: normalized || null })
+    .eq("id", roomId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  await broadcastRoomAiSystemPrompt(roomId, normalized || null);
+  return {};
+}
+
+export async function setRoomAiReasoningEffort(
+  roomId: string,
+  reasoningEffort: AiReasoningEffort,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { error: "You are not signed in." };
+  }
+
+  const normalized = normalizeAiReasoningEffort(reasoningEffort);
+  const { error } = await supabase.rpc("set_room_ai_reasoning_effort", {
+    p_room_id: roomId,
+    p_effort: normalized === "off" ? null : normalized,
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  await broadcastRoomAiReasoningEffort(roomId, normalized);
   return {};
 }

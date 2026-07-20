@@ -135,6 +135,8 @@ export type Database = {
       }
       rooms: {
         Row: {
+          ai_reasoning_effort: string | null
+          ai_system_prompt: string | null
           created_at: string
           created_by: string
           id: string
@@ -143,6 +145,8 @@ export type Database = {
           name: string
         }
         Insert: {
+          ai_reasoning_effort?: string | null
+          ai_system_prompt?: string | null
           created_at?: string
           created_by: string
           id?: string
@@ -151,6 +155,8 @@ export type Database = {
           name: string
         }
         Update: {
+          ai_reasoning_effort?: string | null
+          ai_system_prompt?: string | null
           created_at?: string
           created_by?: string
           id?: string
@@ -192,6 +198,10 @@ export type Database = {
         }[]
       }
       shares_room_with: { Args: { p_user_id: string }; Returns: boolean }
+      set_room_ai_reasoning_effort: {
+        Args: { p_effort: string | null; p_room_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       message_role: "user" | "assistant" | "system"

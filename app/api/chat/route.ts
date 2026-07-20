@@ -13,11 +13,11 @@ import { AI_MAX_OUTPUT_TOKENS, getOpenRouter } from "@/lib/ai/openrouter";
 import {
   AI_QUALITY_EXPERIMENT_MAX_OUTPUT_TOKENS,
   AI_QUALITY_EXPERIMENT_MAX_STEPS,
-  getBaselineSystemPrompt,
-  getExperimentModelSettings,
-  getExperimentSystemPrompt,
   isAiQualityExperimentEnabled,
+  modelSupportsExperimentTools,
+  resolveSystemPrompt,
 } from "@/lib/ai/quality-experiment";
+import { buildOpenRouterChatSettings, normalizeAiReasoningEffort } from "@/lib/ai/reasoning";
 import { uploadGeneratedRoomImage } from "@/lib/rooms/image-storage";
 import { mapMessageWithReply } from "@/lib/rooms/message-replies";
 import {
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
 
   const { data: room, error: roomError } = await supabase
     .from("rooms")
-    .select("id, model")
+    .select("id, model, ai_system_prompt, ai_reasoning_effort")
     .eq("id", roomId)
     .single();
 
@@ -200,8 +200,10 @@ export async function POST(request: Request) {
   );
 
   const qualityExperiment = isAiQualityExperimentEnabled();
+  const hasCustomSystemPrompt = Boolean(room.ai_system_prompt?.trim());
   const historyMessages = messagesToModelHistory(mappedHistory, model, {
     labelSpeakers: qualityExperiment,
+    excludeAssistantMessages: hasCustomSystemPrompt,
   });
 
   const { data: promptRow, error: promptError } = await supabase
@@ -250,9 +252,8 @@ export async function POST(request: Request) {
   );
 
   const supportsImageOutput = modelSupportsImageOutput(model);
-  const systemPrompt = qualityExperiment
-    ? getExperimentSystemPrompt(supportsImageOutput)
-    : getBaselineSystemPrompt(supportsImageOutput);
+  const systemPrompt = resolveSystemPrompt(room.ai_system_prompt);
+  const reasoningEffort = normalizeAiReasoningEffort(room.ai_reasoning_effort);
 
   try {
     await broadcaster.send("ai-token", {
@@ -264,21 +265,21 @@ export async function POST(request: Request) {
     });
 
     const openrouter = getOpenRouter();
-    const experimentSettings = qualityExperiment
-      ? getExperimentModelSettings(model)
-      : null;
+    const openRouterSettings = buildOpenRouterChatSettings(model, reasoningEffort, {
+      enableWebSearch: qualityExperiment && modelSupportsExperimentTools(model),
+    });
+    const usesToolSteps = Boolean(openRouterSettings?.plugins?.length);
     const result = streamText({
-      model: experimentSettings
-        ? openrouter.chat(model, experimentSettings)
+      model: openRouterSettings
+        ? openrouter.chat(model, openRouterSettings)
         : openrouter.chat(model),
       maxOutputTokens: qualityExperiment
         ? AI_QUALITY_EXPERIMENT_MAX_OUTPUT_TOKENS
         : AI_MAX_OUTPUT_TOKENS,
-      // Web/search plugins issue tool calls; default stopWhen is 1 step → empty text.
-      ...(experimentSettings
+      ...(usesToolSteps
         ? { stopWhen: stepCountIs(AI_QUALITY_EXPERIMENT_MAX_STEPS) }
         : {}),
-      system: systemPrompt,
+      ...(systemPrompt ? { system: systemPrompt } : {}),
       messages: [
         ...historyMessages,
         {

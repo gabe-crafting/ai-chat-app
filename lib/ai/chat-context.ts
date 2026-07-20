@@ -6,9 +6,10 @@ import type { ChatMessage } from "@/lib/rooms/message-utils";
 export function messagesToModelHistory(
   messages: ChatMessage[],
   modelId: string,
-  options?: { labelSpeakers?: boolean },
+  options?: { labelSpeakers?: boolean; excludeAssistantMessages?: boolean },
 ): ModelMessage[] {
   const labelSpeakers = options?.labelSpeakers ?? false;
+  const excludeAssistantMessages = options?.excludeAssistantMessages ?? false;
   const hiddenIds = new Set(
     messages.filter((message) => message.hiddenFromAi).map((message) => message.id),
   );
@@ -25,6 +26,9 @@ export function messagesToModelHistory(
         : message;
 
     if (contextMessage.role === "assistant") {
+      if (excludeAssistantMessages) {
+        continue;
+      }
       const content = labelSpeakers
         ? `[${contextMessage.authorName}]: ${contextMessage.content}`
         : contextMessage.content;

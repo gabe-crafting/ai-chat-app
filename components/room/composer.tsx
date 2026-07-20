@@ -9,15 +9,21 @@ import { normalizeModelId } from "@/lib/ai/models";
 import type { ChatMessage } from "@/lib/rooms/message-utils";
 import { useHydrated } from "@/lib/use-hydrated";
 import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
+import { ReasoningSelect } from "@/components/room/reasoning-select";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
 type ComposerProps = {
   roomId: string;
   canPromptAi: boolean;
+  isOwner?: boolean;
   roomModel: string;
+  aiSystemPrompt?: string;
+  onSaveAiSystemPrompt?: (prompt: string) => Promise<void>;
   allHiddenFromAi?: boolean;
   onSetAllHiddenFromAi?: (hiddenFromAi: boolean) => Promise<void>;
+  aiReasoningEffort?: string;
+  onAiReasoningEffortChange?: (effort: string) => Promise<void>;
   replyTarget: ChatMessage | null;
   onClearReply: () => void;
   onSendMessage: (
@@ -66,9 +72,14 @@ async function uploadAttachment(roomId: string, file: File | null) {
 export function Composer({
   roomId,
   canPromptAi,
+  isOwner = false,
   roomModel,
+  aiSystemPrompt = "",
+  onSaveAiSystemPrompt,
   allHiddenFromAi = false,
   onSetAllHiddenFromAi,
+  aiReasoningEffort = "off",
+  onAiReasoningEffortChange,
   replyTarget,
   onClearReply,
   onSendMessage,
@@ -83,12 +94,19 @@ export function Composer({
   const [pending, setPending] = useState(false);
   const [aiPending, setAiPending] = useState(false);
   const [aiSettingsPending, setAiSettingsPending] = useState(false);
+  const [systemPromptDraft, setSystemPromptDraft] = useState(aiSystemPrompt);
   const [error, setError] = useState<string | null>(null);
   const hydrated = useHydrated();
 
   useEffect(() => {
     setAiModel(normalizeModelId(roomModel));
   }, [roomModel]);
+
+  useEffect(() => {
+    setSystemPromptDraft(aiSystemPrompt);
+  }, [aiSystemPrompt]);
+
+  const systemPromptDirty = systemPromptDraft !== aiSystemPrompt;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -242,32 +260,125 @@ export function Composer({
         </form>
       ) : null}
 
-      {canPromptAi && onSetAllHiddenFromAi ? (
-        <div className="space-y-2">
+      {canPromptAi || (isOwner && onSaveAiSystemPrompt) ? (
+        <div className="space-y-3">
           <Label>AI settings</Label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={disabled || busy}
-            onClick={() => {
-              setError(null);
-              setAiSettingsPending(true);
-              void onSetAllHiddenFromAi(!allHiddenFromAi)
-                .catch((err: unknown) => {
-                  setError(
-                    err instanceof Error
-                      ? err.message
-                      : "Failed to update AI context.",
-                  );
-                })
-                .finally(() => {
-                  setAiSettingsPending(false);
-                });
-            }}
-          >
-            {allHiddenFromAi ? "Show all to AI" : "Hide all from AI"}
-          </Button>
+          {isOwner && onSaveAiSystemPrompt ? (
+            <div className="space-y-2">
+              <Label htmlFor="ai-system-prompt" className="text-xs font-normal text-muted-foreground">
+                System prompt
+              </Label>
+              <AutoGrowTextarea
+                id="ai-system-prompt"
+                value={systemPromptDraft}
+                onChange={(event) => setSystemPromptDraft(event.target.value)}
+                placeholder="Describe how the AI should behave in this room…"
+                disabled={disabled || busy}
+                maxRows={8}
+                className="min-h-20"
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={disabled || busy || !systemPromptDirty}
+                  onClick={() => {
+                    setError(null);
+                    setAiSettingsPending(true);
+                    void onSaveAiSystemPrompt(systemPromptDraft)
+                      .catch((err: unknown) => {
+                        setError(
+                          err instanceof Error
+                            ? err.message
+                            : "Failed to save system prompt.",
+                        );
+                      })
+                      .finally(() => {
+                        setAiSettingsPending(false);
+                      });
+                  }}
+                >
+                  Save system prompt
+                </Button>
+                {systemPromptDirty ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={disabled || busy}
+                    onClick={() => setSystemPromptDraft(aiSystemPrompt)}
+                  >
+                    Reset
+                  </Button>
+                ) : null}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Leave empty for no system prompt. Applies to the next AI requests
+                in this room.
+              </p>
+            </div>
+          ) : null}
+          {canPromptAi && (onSetAllHiddenFromAi || onAiReasoningEffortChange) ? (
+            <div className="flex flex-wrap items-end gap-2">
+              {onAiReasoningEffortChange ? (
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="ai-reasoning"
+                    className="text-xs font-normal text-muted-foreground"
+                  >
+                    Reasoning
+                  </Label>
+                  <ReasoningSelect
+                    id="ai-reasoning"
+                    value={aiReasoningEffort}
+                    onValueChange={(value) => {
+                      setError(null);
+                      setAiSettingsPending(true);
+                      void onAiReasoningEffortChange(value)
+                        .catch((err: unknown) => {
+                          setError(
+                            err instanceof Error
+                              ? err.message
+                              : "Failed to update reasoning.",
+                          );
+                        })
+                        .finally(() => {
+                          setAiSettingsPending(false);
+                        });
+                    }}
+                    disabled={disabled || busy}
+                    className="w-32"
+                  />
+                </div>
+              ) : null}
+              {onSetAllHiddenFromAi ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={disabled || busy}
+                  onClick={() => {
+                    setError(null);
+                    setAiSettingsPending(true);
+                    void onSetAllHiddenFromAi(!allHiddenFromAi)
+                      .catch((err: unknown) => {
+                        setError(
+                          err instanceof Error
+                            ? err.message
+                            : "Failed to update AI context.",
+                        );
+                      })
+                      .finally(() => {
+                        setAiSettingsPending(false);
+                      });
+                  }}
+                >
+                  {allHiddenFromAi ? "Show all to AI" : "Hide all from AI"}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
 

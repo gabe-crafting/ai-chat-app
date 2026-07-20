@@ -16,6 +16,8 @@ type RoomLiveProps = {
   initialMessages: ChatMessage[];
   canPromptAi: boolean;
   isOwner: boolean;
+  aiSystemPrompt?: string;
+  aiReasoningEffort?: string;
   readOnly?: boolean;
   inviteSection?: ReactNode;
 };
@@ -28,6 +30,8 @@ export function RoomLive({
   initialMessages,
   canPromptAi,
   isOwner,
+  aiSystemPrompt = "",
+  aiReasoningEffort = "off",
   readOnly = false,
   inviteSection,
 }: RoomLiveProps) {
@@ -45,6 +49,9 @@ export function RoomLive({
         roomModel={roomModel}
         initialMessages={initialMessages}
         canPromptAi={canPromptAi}
+        isOwner={isOwner}
+        aiSystemPrompt={aiSystemPrompt}
+        aiReasoningEffort={aiReasoningEffort}
         authorNames={authorNames}
         readOnly={readOnly}
       />
