@@ -320,12 +320,12 @@ export function Composer({
             </div>
           ) : null}
           {canPromptAi && (onSetAllHiddenFromAi || onAiReasoningEffortChange) ? (
-            <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-wrap items-center gap-3">
               {onAiReasoningEffortChange ? (
-                <div className="space-y-2">
+                <div className="flex items-center gap-2">
                   <Label
                     htmlFor="ai-reasoning"
-                    className="text-xs font-normal text-muted-foreground"
+                    className="shrink-0 text-xs font-normal text-muted-foreground"
                   >
                     Reasoning
                   </Label>
@@ -348,7 +348,7 @@ export function Composer({
                         });
                     }}
                     disabled={disabled || busy}
-                    className="w-32"
+                    className="w-28"
                   />
                 </div>
               ) : null}

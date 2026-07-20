@@ -19,6 +19,7 @@ type ReasoningSelectProps = {
   disabled?: boolean;
   className?: string;
   id?: string;
+  size?: "sm" | "default";
 };
 
 export function ReasoningSelect({
@@ -27,6 +28,7 @@ export function ReasoningSelect({
   disabled,
   className,
   id,
+  size = "sm",
 }: ReasoningSelectProps) {
   const normalizedValue = normalizeAiReasoningEffort(value);
 
@@ -40,7 +42,7 @@ export function ReasoningSelect({
       }}
       disabled={disabled}
     >
-      <SelectTrigger id={id} className={cn("w-full", className)} size="default">
+      <SelectTrigger id={id} className={cn("w-full", className)} size={size}>
         <SelectValue>
           {AI_REASONING_EFFORTS.find((option) => option.value === normalizedValue)
             ?.label ?? "Off"}
