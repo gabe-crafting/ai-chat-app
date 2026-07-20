@@ -4,10 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Composer } from "@/components/room/composer";
 import { MessageList } from "@/components/room/message-list";
+import { ScrollToBottomButton } from "@/components/room/scroll-to-bottom-button";
 import type { AiStreamEvent, PendingAiMessage } from "@/lib/rooms/ai-stream";
 import { readApiJson } from "@/lib/api/parse-response";
 import { getModelLabel, normalizeModelId } from "@/lib/ai/models";
-import { sendRoomMessage, setMessageHiddenFromAi } from "@/lib/rooms/actions";
+import { sendRoomMessage, setAllMessagesHiddenFromAi, setMessageHiddenFromAi } from "@/lib/rooms/actions";
 import type { ChatMessage } from "@/lib/rooms/message-utils";
 import { enrichReplyAuthors } from "@/lib/rooms/message-utils";
 import { createClient } from "@/lib/supabase/client";
@@ -120,6 +121,7 @@ export function RoomChat({
   authorNamesRef.current = authorNames;
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+  const scrollBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMessages((current) =>
@@ -191,6 +193,13 @@ export function RoomChat({
               ? { ...message, hiddenFromAi }
               : message,
           ),
+        );
+      })
+      .on("broadcast", { event: "all_messages_ai_visibility" }, ({ payload }) => {
+        const { hiddenFromAi } = payload as { hiddenFromAi: boolean };
+
+        setMessages((current) =>
+          current.map((message) => ({ ...message, hiddenFromAi })),
         );
       })
       .subscribe();
@@ -330,8 +339,38 @@ export function RoomChat({
     [roomId],
   );
 
+  const handleSetAllHiddenFromAi = useCallback(async (hiddenFromAi: boolean) => {
+    const previous = messagesRef.current.map((message) => ({
+      id: message.id,
+      hiddenFromAi: message.hiddenFromAi,
+    }));
+
+    setMessages((current) =>
+      current.map((message) => ({ ...message, hiddenFromAi })),
+    );
+
+    const result = await setAllMessagesHiddenFromAi(roomId, hiddenFromAi);
+
+    if (result.error) {
+      setMessages((current) =>
+        current.map((message) => {
+          const prior = previous.find((entry) => entry.id === message.id);
+          return prior
+            ? { ...message, hiddenFromAi: prior.hiddenFromAi }
+            : message;
+        }),
+      );
+      throw new Error(result.error);
+    }
+  }, [roomId]);
+
+  const allHiddenFromAi =
+    messages.length > 0 && messages.every((message) => message.hiddenFromAi);
+
   return (
-    <section className="flex min-h-[420px] flex-col overflow-hidden rounded-lg border">
+    <>
+      <ScrollToBottomButton targetRef={scrollBottomRef} />
+      <section className="flex min-h-[420px] flex-col overflow-hidden rounded-lg border">
       <MessageList
         messages={messages}
         pendingAi={pendingAi}
@@ -339,6 +378,7 @@ export function RoomChat({
         onReply={setReplyTarget}
         readOnly={readOnly}
         canManageAiContext={canPromptAi && !readOnly}
+        bottomRef={scrollBottomRef}
         onHiddenFromAiChange={handleHiddenFromAiChange}
       />
       {!readOnly ? (
@@ -346,6 +386,10 @@ export function RoomChat({
           roomId={roomId}
           canPromptAi={canPromptAi}
           roomModel={roomModel}
+          allHiddenFromAi={allHiddenFromAi}
+          onSetAllHiddenFromAi={
+            canPromptAi ? handleSetAllHiddenFromAi : undefined
+          }
           replyTarget={replyTarget}
           onClearReply={() => setReplyTarget(null)}
           onSendMessage={sendMessage}
@@ -353,5 +397,6 @@ export function RoomChat({
         />
       ) : null}
     </section>
+    </>
   );
 }

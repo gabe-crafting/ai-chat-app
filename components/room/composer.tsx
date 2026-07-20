@@ -16,6 +16,8 @@ type ComposerProps = {
   roomId: string;
   canPromptAi: boolean;
   roomModel: string;
+  allHiddenFromAi?: boolean;
+  onSetAllHiddenFromAi?: (hiddenFromAi: boolean) => Promise<void>;
   replyTarget: ChatMessage | null;
   onClearReply: () => void;
   onSendMessage: (
@@ -65,6 +67,8 @@ export function Composer({
   roomId,
   canPromptAi,
   roomModel,
+  allHiddenFromAi = false,
+  onSetAllHiddenFromAi,
   replyTarget,
   onClearReply,
   onSendMessage,
@@ -78,6 +82,7 @@ export function Composer({
   const [aiImage, setAiImage] = useState<File | null>(null);
   const [pending, setPending] = useState(false);
   const [aiPending, setAiPending] = useState(false);
+  const [aiSettingsPending, setAiSettingsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hydrated = useHydrated();
 
@@ -130,7 +135,7 @@ export function Composer({
     }
   }
 
-  const busy = pending || aiPending;
+  const busy = pending || aiPending || aiSettingsPending;
   const sendEmpty = !message.trim() && !messageImage;
   const askEmpty = !aiPrompt.trim() && !aiImage && !replyTarget?.imageUrl;
 
@@ -235,6 +240,35 @@ export function Composer({
             disabled={disabled || busy}
           />
         </form>
+      ) : null}
+
+      {canPromptAi && onSetAllHiddenFromAi ? (
+        <div className="space-y-2">
+          <Label>AI settings</Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled || busy}
+            onClick={() => {
+              setError(null);
+              setAiSettingsPending(true);
+              void onSetAllHiddenFromAi(!allHiddenFromAi)
+                .catch((err: unknown) => {
+                  setError(
+                    err instanceof Error
+                      ? err.message
+                      : "Failed to update AI context.",
+                  );
+                })
+                .finally(() => {
+                  setAiSettingsPending(false);
+                });
+            }}
+          >
+            {allHiddenFromAi ? "Show all to AI" : "Hide all from AI"}
+          </Button>
+        </div>
       ) : null}
 
       {error ? (

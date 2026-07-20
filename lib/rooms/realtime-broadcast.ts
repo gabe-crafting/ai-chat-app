@@ -122,3 +122,16 @@ export async function broadcastMessageAiVisibility(
     console.error("[realtime] message AI visibility broadcast failed", error);
   }
 }
+
+export async function broadcastAllMessagesAiVisibility(
+  roomId: string,
+  hiddenFromAi: boolean,
+): Promise<void> {
+  try {
+    await broadcastRoomEvent(roomId, "all_messages_ai_visibility", {
+      hiddenFromAi,
+    });
+  } catch (error) {
+    console.error("[realtime] all messages AI visibility broadcast failed", error);
+  }
+}

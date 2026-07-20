@@ -16,6 +16,7 @@ import {
   broadcastParticipantsChanged,
   broadcastParticipantKicked,
   broadcastMessageAiVisibility,
+  broadcastAllMessagesAiVisibility,
   broadcastRoomMessage,
 } from "@/lib/rooms/realtime-broadcast";
 import { createClient } from "@/lib/supabase/server";
@@ -276,5 +277,60 @@ export async function setMessageHiddenFromAi(
   }
 
   await broadcastMessageAiVisibility(roomId, messageId, hiddenFromAi);
+  return {};
+}
+
+async function assertCanManageAiContext(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  roomId: string,
+  userId: string,
+) {
+  const { data: participant, error: participantError } = await supabase
+    .from("room_participants")
+    .select("can_prompt_ai")
+    .eq("room_id", roomId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (participantError) {
+    return { error: participantError.message };
+  }
+
+  if (!participant?.can_prompt_ai) {
+    return { error: "You do not have permission to change AI context." };
+  }
+
+  return {};
+}
+
+export async function setAllMessagesHiddenFromAi(
+  roomId: string,
+  hiddenFromAi: boolean,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { error: "You are not signed in." };
+  }
+
+  const permission = await assertCanManageAiContext(supabase, roomId, user.id);
+  if (permission.error) {
+    return permission;
+  }
+
+  const { error } = await supabase
+    .from("messages")
+    .update({ hidden_from_ai: hiddenFromAi })
+    .eq("room_id", roomId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  await broadcastAllMessagesAiVisibility(roomId, hiddenFromAi);
   return {};
 }
