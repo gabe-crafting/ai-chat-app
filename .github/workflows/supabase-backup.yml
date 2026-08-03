@@ -1,0 +1,50 @@
+name: Supabase backup to GCS
+
+on:
+  schedule:
+    # Daily at 02:00 UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: supabase-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Create database backup
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          OUTPUT_DIR: backup-out
+        run: |
+          BACKUP_DATE="$(date -u +%Y-%m-%d)"
+          echo "BACKUP_DATE=${BACKUP_DATE}" >> "$GITHUB_ENV"
+          bash scripts/backup-database.sh
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+      - name: Upload backup to GCS
+        uses: google-github-actions/upload-cloud-storage@v2
+        with:
+          path: backup-out
+          destination: ${{ secrets.GCS_BACKUP_BUCKET }}/supabase-backups/${{ env.BACKUP_DATE }}
+          gzip: false
+
+      - name: Summary
+        run: |
+          echo "Uploaded to gs://${{ secrets.GCS_BACKUP_BUCKET }}/supabase-backups/${BACKUP_DATE}/"
